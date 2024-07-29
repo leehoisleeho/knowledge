@@ -1,5 +1,5 @@
 <p align="center">
- <img src="./logo.png" width="200" alt="Nest Logo" />
+ <img src="./logo.png" width="180" alt="Nest Logo" />
 </p>
 
 ## Description
