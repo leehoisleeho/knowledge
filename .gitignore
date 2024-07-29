@@ -13,15 +13,9 @@ yarn-error.log*
 lerna-debug.log*
 
 /myenv
-
-# 忽略 public/pdf 目录下的所有文件，但保留目录结构
-/public/pdf/*
-!/public/pdf/.gitkeep
-
-# 忽略 public/vector 目录下的所有文件，但保留目录结构
-/public/vector/*
-!/public/vector/.gitkeep
-
+public/**
+!public/pdf
+!public/vector
 
 # OS
 .DS_Store
