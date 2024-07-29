@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import * as PDFLoader from 'pdf-parse';
 import * as path from 'path';
 import { promises as fsPromises } from 'fs';
-import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 import { exec } from 'child_process';
 import * as faiss from 'faiss-node';
 import { promises as fs } from 'fs';
@@ -11,7 +9,6 @@ import { ensureDirectoryExistence } from '../utils';
 @Injectable()
 export class VectorService {
   constructor() {}
-
   // pdf向量化并存储
   async vector(fileName: string) {
     const filePath = path.join(
@@ -22,15 +19,7 @@ export class VectorService {
       'pdf',
       fileName,
     );
-    // const fileBuffer = await fsPromises.readFile(filePath);
-    // const { text } = await PDFLoader(fileBuffer);
-    const text = `
-      近期，上海合合信息科技股份有限公司发布的文本向量化模型 acge_text_embedding 在中文文本向量化领域取得了重大突破，荣获 Massive Text Embedding Benchmark (MTEB) 中文榜单（C-MTEB）第一名的成绩。这一成就标志着该模型将在大模型领域的应用中发挥更加迅速和广泛的影响。
-      acge_text_embedding 是上海合合信息科技股份有限公司基于大规模文本数据集训练的文本向量化模型，具有较高的文本向量化精度和效率。该模型在 C-MTEB 中文榜单中取得了第一名的成绩，证明了其在中文文本向量化领域的领先地位。
-    `;
-    const segments = await this.segmentation(text);
-    const vectors: any = await this.vectorizeTextByPython(segments);
-    const { index, texts } = await this.createFaissIndex(vectors);
+    const outPath = path.join(__dirname, '..', '..', 'temp', 'output.json');
     const indexPath = path.join(
       __dirname,
       '..',
@@ -47,29 +36,32 @@ export class VectorService {
       'vector',
       'texts.json',
     );
-    await this.saveIndex(index, texts, indexPath, textsPath);
-  }
-
-  // 分割文本
-  private async segmentation(text: string) {
-    const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 20, // 你可以根据需要调整这个值
-      chunkOverlap: 10, // 你可以根据需要调整这个值
-    });
-    const output = await splitter.createDocuments([text]);
-    return output; // 假设 segment 有 pageContent 属性包含分割后的文本
+    try {
+      const pdfPath = filePath;
+      await this.vectorizeTextByPython(pdfPath, outPath);
+      // 读取向量化后的文件
+      // 读取向量化后的文件并解析为对象
+      const vectorDataString = await fsPromises.readFile(outPath, 'utf-8');
+      const vectorData: [string, number[]][] = JSON.parse(vectorDataString);
+      const { index, texts } = await this.createFaissIndex(vectorData);
+      await this.saveIndex(index, texts, indexPath, textsPath);
+      return {
+        code: 0,
+        msg: 'success',
+      };
+    } catch (error) {
+      return {
+        code: 1,
+        msg: error,
+      };
+    }
   }
 
   // 调用python脚本 生成向量
-  // 修改后的vectorizeTextByPython函数;
-  private async vectorizeTextByPython(text) {
-    // 只提取pageContent字段
-    const textChunks = text.map((doc) => doc.pageContent);
-
-    // 将文本数组转换为JSON字符串，并正确转义
-    const jsonString = JSON.stringify(textChunks);
-    const escapedJsonString = jsonString.replace(/"/g, '\\"');
-
+  private async vectorizeTextByPython(
+    pdfPath: string,
+    outPath: string,
+  ): Promise<any> {
     return new Promise((resolve, reject) => {
       const scriptPath = path.join(
         __dirname,
@@ -78,30 +70,36 @@ export class VectorService {
         'src',
         'vectorizeFile.py',
       );
-      const command = `python3 "${scriptPath}" "${escapedJsonString}"`;
+      const command = `python3 "${scriptPath}" "${pdfPath}" "${outPath}"`;
+      exec(
+        command,
+        { maxBuffer: 1024 * 1024 * 50 },
+        async (error, stdout, stderr) => {
+          if (error) {
+            console.error(`执行出错: ${error}`);
+            reject(error);
+            return;
+          }
+          if (stderr) {
+            console.error(`脚本错误输出: ${stderr}`);
+          }
 
-      exec(command, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`执行错误: ${error}`);
-          reject(error);
-          return;
-        }
-        if (stderr) {
-          console.error(`标准错误: ${stderr}`);
-          reject(new Error(`Python脚本错误: ${stderr}`));
-          return;
-        }
-        try {
-          const result = JSON.parse(stdout);
-          resolve(result);
-        } catch (parseError) {
-          console.error(`解析错误: ${parseError}`);
-          reject(new Error(`无法解析向量化文本: ${parseError.message}`));
-        }
-      });
+          // 检查标准输出中是否包含任务完成的标志
+          if (stdout.includes('任务完成')) {
+            try {
+              const data = await fs.readFile(outPath, 'utf8');
+              const result = JSON.parse(data);
+              resolve(result);
+            } catch (err) {
+              reject(new Error(`无法读取或解析 JSON 文件: ${err}`));
+            }
+          } else {
+            reject(new Error(`Python 脚本未能成功完成`));
+          }
+        },
+      );
     });
   }
-
   //存储向量到faiss索引
   async createFaissIndex(vectorsData: [string, number[]][]) {
     // Ensure vectorizedData is an array

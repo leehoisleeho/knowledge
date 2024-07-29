@@ -6,6 +6,11 @@ export class QueryController {
   constructor(private readonly queryService: QueryService) {}
   @Post()
   async query(@Body('question') question: string) {
-    return await this.queryService.query(question);
+    const res = await this.queryService.queryAndAnswer(question);
+    return {
+      code: 0,
+      msg: 'success',
+      data: res,
+    };
   }
 }

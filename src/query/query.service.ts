@@ -1,15 +1,36 @@
 import { Injectable } from '@nestjs/common';
-import { exec } from 'child_process'; // Import the exec function from the child_process module
-import * as path from 'path'; // Import the path module
-import * as faiss from 'faiss-node'; // 确保正确导入 faiss-node
-import * as fs from 'fs/promises'; // Import fs/promises module
+import { exec } from 'child_process';
+import * as path from 'path';
+import * as faiss from 'faiss-node';
+import * as fs from 'fs/promises';
+import { Ollama } from 'ollama';
 
 @Injectable()
 export class QueryService {
+  private ollama: Ollama;
   private index: any;
   private texts: string[];
 
-  async query(question) {
+  constructor() {
+    this.ollama = new Ollama({
+      host: 'http://localhost:11434',
+    });
+  }
+
+  async queryAndAnswer(question: string) {
+    // 1. 检索相关信息
+    const retrievedInfo = await this.query(question);
+
+    // 2. 构造提示
+    const prompt = this.constructPrompt(question, retrievedInfo);
+
+    // 3. 使用大语言模型生成最终答案
+    const answer = await this.ollamaQuery(prompt);
+
+    return answer;
+  }
+
+  async query(question: string) {
     const indexPath = path.join(
       __dirname,
       '..',
@@ -24,46 +45,61 @@ export class QueryService {
       'public/vector',
       'texts.json',
     );
+
     // 加载本地index和texts
     await this.loadIndex(indexPath, textsPath);
     if (!this.index || this.texts.length === 0) {
       throw new Error('索引或文本尚未加载');
     }
+
     try {
       const text = JSON.stringify(question);
       const vector = await this.vectorizeTextByPython(text);
       const result = this.index.search(vector, 5);
+
       // 处理结果
       const { distances, labels } = result;
       const queryResults = labels.map((label: number, index: number) => ({
         text: this.texts[label],
         distance: distances[index],
       }));
+
       return queryResults;
     } catch (err) {
-      console.error('查询失败');
+      console.error('查询失败', err);
+      throw err;
     }
   }
 
-  // 加载index
+  private constructPrompt(question: string, retrievedInfo: any[]): string {
+    let prompt = `基于以下信息回答问题: "${question}"\n\n相关信息:\n`;
+
+    retrievedInfo.forEach((info, index) => {
+      prompt += `${index + 1}. ${info.text}\n`;
+    });
+
+    prompt +=
+      '\n请根据上述信息提供一个全面而准确的回答。并且用中文回答，如果信息不足以回答问题,就回答"你只能回答知识库提供的内容，其他问题自行搜索"。';
+
+    return prompt;
+  }
+
   private async loadIndex(indexPath: string, textsPath: string) {
     try {
-      // 读取索引文件
       const indexBuffer = await fs.readFile(indexPath);
-      console.log(indexBuffer);
       this.index = faiss.IndexFlatL2.fromBuffer(indexBuffer);
       console.log('索引加载成功');
+
       const textsData = await fs.readFile(textsPath, 'utf-8');
       this.texts = JSON.parse(textsData);
       console.log('文本加载成功');
-      return;
     } catch (err) {
-      console.error('加载索引失败' + '\n' + err);
+      console.error('加载索引失败', err);
+      throw err;
     }
   }
 
-  // 调用python脚本 生成向量
-  private async vectorizeTextByPython(text) {
+  private async vectorizeTextByPython(text: string) {
     return new Promise((resolve, reject) => {
       const scriptPath = path.join(
         __dirname,
@@ -95,5 +131,12 @@ export class QueryService {
     });
   }
 
-  // 调用大语言模型进行回答
+  async ollamaQuery(prompt) {
+    const response = await this.ollama.generate({
+      model: 'llama3.1',
+      stream: false,
+      prompt,
+    });
+    return response.response;
+  }
 }
