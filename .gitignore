@@ -13,7 +13,7 @@ yarn-error.log*
 lerna-debug.log*
 
 /myenv
-public/pdf/**
+public/pdf/*.pdf
 public/vector/**
 
 # OS
