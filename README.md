@@ -1,5 +1,5 @@
 <p align="center">
- <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTmoqHLJLmnDJL2gqYAhSOC-hHautIWZSBdcA&s" width="200" alt="Nest Logo" />
+ <img src="./logo.png" width="200" alt="Nest Logo" />
 </p>
 
 ## Description
