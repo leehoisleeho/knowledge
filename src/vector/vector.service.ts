@@ -6,6 +6,7 @@ import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 import { exec } from 'child_process';
 import * as faiss from 'faiss-node';
 import { promises as fs } from 'fs';
+import { ensureDirectoryExistence } from '../utils';
 
 @Injectable()
 export class VectorService {
@@ -132,14 +133,12 @@ export class VectorService {
     if (flatVectors.length > 0) {
       index.add(flatVectors);
       const totalVectors = flatVectors.length / dimension;
-      console.log(`已添加 ${totalVectors} 个向量到索引中`);
       if (index.ntotal() !== totalVectors) {
         throw new Error(
           `向索引添加向量时出错，预期添加 ${totalVectors} 个向量，但实际添加了 ${index.ntotal()} 个向量。`,
         );
       }
       console.log('FAISS创建成功');
-      console.log('索引中的向量数量:', index);
     } else {
       console.warn('没有要添加到索引的有效向量');
     }
@@ -154,8 +153,15 @@ export class VectorService {
     textsPath: string,
   ) {
     try {
+      await ensureDirectoryExistence(
+        path.join(__dirname, '..', '..', 'public', 'vector'),
+      );
       await index.write(indexPath);
+      await ensureDirectoryExistence(
+        path.join(__dirname, '..', '..', 'public', 'vector'),
+      );
       await fs.writeFile(textsPath, JSON.stringify(texts));
+      console.error('保存索引和文本成功');
     } catch (error) {
       console.error('保存索引和文本时出错:', error);
     }

@@ -13,8 +13,7 @@ yarn-error.log*
 lerna-debug.log*
 
 /myenv
-public/pdf/*.pdf
-public/vector/**
+/public/**
 
 # OS
 .DS_Store
