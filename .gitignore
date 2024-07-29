@@ -14,7 +14,7 @@ lerna-debug.log*
 
 /myenv
 /public/**
-/temp/**
+/temp
 
 # OS
 .DS_Store
