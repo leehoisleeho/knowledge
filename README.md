@@ -10,19 +10,17 @@ NestJS开发的一个本地知识库系统
 3. 基于llama3.1模型进行文档的问答
 
 ## Installation
-/// 安装Python虚拟环境
+💾 安装Python虚拟环境
 ```bash
 $ python3 -m venv venv
 $ source venv/bin/activate // 激活虚拟环境
 $ pip3 install -r SentenceTransformer
 ```
 
+🚀 启动项目
 ```bash
 $ npm install
 ```
-
- Running the app
-
 ```bash
 # development
 $ npm run start
